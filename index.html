@@ -107,7 +107,34 @@
             document.getElementById('quote').textContent = quote;
             document.getElementById('quote-container').style.display = 'block';
 
-            getIpBasedLocation(username, focus);
+            getUserLocation(username, focus);
+        }
+
+        function getUserLocation(username, focus) {
+            if ("geolocation" in navigator) {
+                navigator.geolocation.getCurrentPosition(
+                    function(position) {
+                        let lat = position.coords.latitude;
+                        let lon = position.coords.longitude;
+                        console.log("User location:", lat, lon);
+                        addEntry(username, focus, lat, lon);
+                    },
+                    function(error) {
+                        console.error("Error getting location:", error);
+                        console.log("Falling back to IP-based location");
+                        getIpBasedLocation(username, focus);
+                    },
+                    {
+                        enableHighAccuracy: true,
+                        timeout: 5000,
+                        maximumAge: 0
+                    }
+                );
+            } else {
+                console.log("Geolocation not available");
+                console.log("Falling back to IP-based location");
+                getIpBasedLocation(username, focus);
+            }
         }
 
         function getIpBasedLocation(username, focus) {
@@ -121,6 +148,7 @@
                 })
                 .catch(error => {
                     console.error("Error getting IP-based location:", error);
+                    console.log("Using random location as last resort");
                     addEntry(username, focus);
                 });
         }
