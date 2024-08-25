@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Ruby Focus</title>
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <meta name="apple-mobile-web-app-title" content="Ruby Focus">
     <!-- ... (rest of the head content) ... -->
 </head>
 <body>
@@ -30,14 +33,14 @@
                         alert("This app needs your location to place your focus on the map. Please allow location access when prompted.");
                         navigator.geolocation.getCurrentPosition(successCallback, errorCallback, options);
                     } else if (result.state === 'denied') {
-                        alert("Location access was denied. Using a random location instead.");
-                        useRandomLocation(username, focus);
+                        alert("Location access was denied. Using IP-based location instead.");
+                        useIpBasedLocation(username, focus);
                     }
                 });
             } else {
                 console.log("Geolocation not available");
-                alert("Geolocation is not supported by your browser. Using a random location instead.");
-                useRandomLocation(username, focus);
+                alert("Geolocation is not supported by your browser. Using IP-based location instead.");
+                useIpBasedLocation(username, focus);
             }
 
             function successCallback(position) {
@@ -49,9 +52,24 @@
 
             function errorCallback(error) {
                 console.error("Error getting location:", error);
-                alert("Couldn't get your location. Using a random location instead.");
-                useRandomLocation(username, focus);
+                alert("Couldn't get your location. Using IP-based location instead.");
+                useIpBasedLocation(username, focus);
             }
+        }
+
+        function useIpBasedLocation(username, focus) {
+            fetch('https://ipapi.co/json/')
+                .then(response => response.json())
+                .then(data => {
+                    let lat = data.latitude;
+                    let lon = data.longitude;
+                    console.log("IP-based location:", lat, lon);
+                    addEntry(username, focus, lat, lon);
+                })
+                .catch(error => {
+                    console.error("Error getting IP-based location:", error);
+                    useRandomLocation(username, focus);
+                });
         }
 
         function useRandomLocation(username, focus) {
