@@ -126,26 +126,32 @@
 
             let entry = { username, focus, lat, lon, timestamp: Date.now() };
             
+            console.log("Adding entry:", entry);
             push(ref(database, 'entries'), entry)
                 .then(() => {
                     addMarker(entry);
                     console.log("Entry added successfully");
                 })
-                .catch(error => console.error('Error:', error));
+                .catch(error => console.error('Error adding entry:', error));
         }
 
         function addMarker(entry) {
+            console.log("Adding marker for entry:", entry);
             let marker = L.marker([entry.lat, entry.lon]).addTo(map);
             marker.bindPopup(`<b>${entry.username}</b><br>${entry.focus}`).openPopup();
             markers.push(marker);
+            console.log("Marker added, total markers:", markers.length);
         }
 
         function loadEntries() {
+            console.log("Loading entries...");
             onValue(ref(database, 'entries'), (snapshot) => {
                 const entries = snapshot.val();
                 if (entries) {
+                    console.log("Entries loaded:", Object.keys(entries).length);
                     Object.values(entries).forEach(entry => addMarker(entry));
-                    console.log("Loaded entries:", Object.keys(entries).length);
+                } else {
+                    console.log("No entries found");
                 }
             }, {
                 onlyOnce: true
