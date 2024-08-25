@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Ruby Focus</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
     <style>
         html, body {
             height: 100%;
@@ -45,6 +47,8 @@
     <div id="map"></div>
 
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/OverlappingMarkerSpiderfier-Leaflet/0.2.6/oms.min.js"></script>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
         import { getDatabase, ref, push, onValue } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-database.js";
@@ -65,7 +69,7 @@
         const analytics = getAnalytics(app);
         const database = getDatabase(app);
 
-        let map, markers = [];
+        let map, markerClusterGroup, oms;
 
         function initMap() {
             console.log("Initializing map...");
@@ -73,6 +77,14 @@
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             }).addTo(map);
+
+            markerClusterGroup = L.markerClusterGroup().addTo(map);
+            oms = new OverlappingMarkerSpiderfier(map);
+
+            oms.addListener('click', function(marker) {
+                marker.openPopup();
+            });
+
             console.log("Map initialized");
             loadEntries();
         }
@@ -119,7 +131,6 @@
 
         function addEntry(username, focus, lat, lon) {
             if (lat === undefined || lon === undefined) {
-                // Use random location if not provided
                 lat = Math.random() * 180 - 90;
                 lon = Math.random() * 360 - 180;
             }
@@ -137,10 +148,14 @@
 
         function addMarker(entry) {
             console.log("Adding marker for entry:", entry);
-            let marker = L.marker([entry.lat, entry.lon]).addTo(map);
-            marker.bindPopup(`<b>${entry.username}</b><br>${entry.focus}`).openPopup();
-            markers.push(marker);
-            console.log("Marker added, total markers:", markers.length);
+            let marker = L.marker([entry.lat, entry.lon]);
+            marker.bindPopup(`<b>${entry.username}</b><br>${entry.focus}`);
+            markerClusterGroup.addLayer(marker);
+            oms.addMarker(marker);
+            console.log("Marker added to cluster group");
+
+            // Center the map on the new marker
+            map.setView([entry.lat, entry.lon], 10);
         }
 
         function loadEntries() {
@@ -150,6 +165,10 @@
                 if (entries) {
                     console.log("Entries loaded:", Object.keys(entries).length);
                     Object.values(entries).forEach(entry => addMarker(entry));
+                    
+                    // Fit the map to show all markers
+                    let group = L.featureGroup(markerClusterGroup.getLayers());
+                    map.fitBounds(group.getBounds().pad(0.1));
                 } else {
                     console.log("No entries found");
                 }
