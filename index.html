@@ -1,15 +1,37 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <!-- ... existing head content ... -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ruby Focus</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
     <style>
-        /* ... existing styles ... */
-        #quote-container {
+        body, html {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+        }
+        #map {
+            flex-grow: 1;
+            min-height: 400px; /* Ensure a minimum height */
+        }
+        #input-container, #quote-container {
             padding: 20px;
-            background-color: #e0e0e0;
+            background-color: #f0f0f0;
+        }
+        input, button {
+            margin: 5px;
+            padding: 5px;
+        }
+        #quote-container {
+            display: none;
             text-align: center;
             font-size: 18px;
-            display: none;
         }
         .share-buttons {
             margin-top: 10px;
@@ -37,4 +59,128 @@
             <button onclick="shareOnFacebook()">Share on Facebook</button>
         </div>
     </div>
-    <div id="map"></div
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script>
+        let map, markers = {};
+
+        document.addEventListener('DOMContentLoaded', function() {
+            initMap();
+            loadSavedFocuses();
+
+            setInterval(updateMarkers, 60000);  // Update every minute
+        });
+
+        function initMap() {
+            map = L.map('map').setView([0, 0], 2);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }).addTo(map);
+        }
+
+        function updateMarkers() {
+            for (let username in markers) {
+                let data = JSON.parse(localStorage.getItem(username));
+                if (data) {
+                    let timeDiff = Math.round((Date.now() - data.timestamp) / (60 * 1000));
+                    markers[username].setPopupContent(`<b>${username}</b><br>${data.focus}<br>${timeDiff} min ago`);
+                }
+            }
+        }
+
+        function generatePun(city) {
+            const puns = {
+                'New York': 'New Focus City',
+                'Los Angeles': 'Los Focused',
+                'Chicago': 'Chicagocus',
+                'Houston': 'Focuston',
+                'Phoenix': 'Phoenocus',
+                'Philadelphia': 'Philadelfocus',
+                'San Antonio': 'San Focusio',
+                'San Diego': 'San Diegocus',
+                'Dallas': 'Focuslas',
+                'San Jose': 'San Focus'
+            };
+            return puns[city] || `${city} Focus`;
+        }
+
+        function generateInspirationalQuote(focus) {
+            const quotes = [
+                `Your focus on ${focus} will lead you to great achievements.`,
+                `Dedication to ${focus} is the first step towards mastery.`,
+                `With ${focus} as your goal, success is inevitable.`,
+                `Your commitment to ${focus} will inspire others.`,
+                `Every moment spent on ${focus} is an investment in your future.`
+            ];
+            return quotes[Math.floor(Math.random() * quotes.length)];
+        }
+
+        function submitFocus() {
+            let focus = document.getElementById('focus').value;
+            let username = document.getElementById('username').value;
+
+            if (!focus) {
+                alert('Please enter what you are focused on.');
+                return;
+            }
+
+            const quote = generateInspirationalQuote(focus);
+            document.getElementById('quote').textContent = quote;
+            document.getElementById('quote-container').style.display = 'block';
+
+            fetch('https://ipapi.co/json/')
+                .then(response => response.json())
+                .then(data => {
+                    username = username || generatePun(data.city);
+                    let lat = data.latitude;
+                    let lon = data.longitude;
+
+                    if (markers[username]) {
+                        map.removeLayer(markers[username]);
+                    }
+
+                    let marker = L.marker([lat, lon]).addTo(map);
+                    marker.bindPopup(`<b>${username}</b><br>${focus}<br>Just now`).openPopup();
+                    markers[username] = marker;
+
+                    localStorage.setItem(username, JSON.stringify({
+                        focus: focus,
+                        lat: lat,
+                        lon: lon,
+                        timestamp: Date.now()
+                    }));
+                });
+        }
+
+        function loadSavedFocuses() {
+            for (let i = 0; i < localStorage.length; i++) {
+                let username = localStorage.key(i);
+                let data = JSON.parse(localStorage.getItem(username));
+                
+                if (Date.now() - data.timestamp > 24 * 60 * 60 * 1000) {
+                    localStorage.removeItem(username);
+                    continue;
+                }
+
+                let marker = L.marker([data.lat, data.lon]).addTo(map);
+                let timeDiff = Math.round((Date.now() - data.timestamp) / (60 * 1000));
+                marker.bindPopup(`<b>${username}</b><br>${data.focus}<br>${timeDiff} min ago`);
+                markers[username] = marker;
+            }
+        }
+
+        function shareOnTwitter() {
+            const quote = document.getElementById('quote').textContent;
+            const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(quote)}`;
+            window.open(twitterUrl, '_blank');
+        }
+
+        function shareOnFacebook() {
+            const quote = document.getElementById('quote').textContent;
+            const facebookUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(window.location.href)}&quote=${encodeURIComponent(quote)}`;
+            window.open(facebookUrl, '_blank');
+        }
+    </script>
+</body>
+</html>
