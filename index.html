@@ -19,7 +19,7 @@
         #map {
             flex-grow: 1;
             width: 100%;
-            min-height: 300px; /* Ensure a minimum height */
+            min-height: 300px;
         }
         #input-container, #quote-container {
             padding: 10px;
@@ -55,6 +55,7 @@
                 attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             }).addTo(map);
             console.log("Map initialized");
+            loadSavedEntries();
         }
 
         function generateQuote(focus) {
@@ -75,14 +76,34 @@
             document.getElementById('quote').textContent = quote;
             document.getElementById('quote-container').style.display = 'block';
 
-            console.log("Adding marker for:", username, focus);
-            addMarker(username, focus);
+            getUserLocation(username, focus);
         }
 
-        function addMarker(username, focus) {
-            // For demonstration, we'll use a random location
-            let lat = Math.random() * 180 - 90;
-            let lon = Math.random() * 360 - 180;
+        function getUserLocation(username, focus) {
+            if ("geolocation" in navigator) {
+                navigator.geolocation.getCurrentPosition(function(position) {
+                    let lat = position.coords.latitude;
+                    let lon = position.coords.longitude;
+                    console.log("User location:", lat, lon);
+                    addMarker(username, focus, lat, lon);
+                }, function(error) {
+                    console.error("Error getting location:", error);
+                    alert("Couldn't get your location. Using a random location instead.");
+                    addMarker(username, focus);
+                });
+            } else {
+                console.log("Geolocation not available");
+                alert("Geolocation is not supported by your browser. Using a random location instead.");
+                addMarker(username, focus);
+            }
+        }
+
+        function addMarker(username, focus, lat, lon) {
+            if (lat === undefined || lon === undefined) {
+                // Use random location if not provided
+                lat = Math.random() * 180 - 90;
+                lon = Math.random() * 360 - 180;
+            }
 
             let marker = L.marker([lat, lon]).addTo(map);
             marker.bindPopup(`<b>${username}</b><br>${focus}`).openPopup();
@@ -90,6 +111,25 @@
 
             console.log("Marker added at:", lat, lon);
             console.log("Total markers:", markers.length);
+
+            // Save the entry
+            saveEntry(username, focus, lat, lon);
+        }
+
+        function saveEntry(username, focus, lat, lon) {
+            let entries = JSON.parse(localStorage.getItem('entries')) || [];
+            entries.push({ username, focus, lat, lon, timestamp: Date.now() });
+            localStorage.setItem('entries', JSON.stringify(entries));
+        }
+
+        function loadSavedEntries() {
+            let entries = JSON.parse(localStorage.getItem('entries')) || [];
+            entries.forEach(entry => {
+                let marker = L.marker([entry.lat, entry.lon]).addTo(map);
+                marker.bindPopup(`<b>${entry.username}</b><br>${entry.focus}`);
+                markers.push(marker);
+            });
+            console.log("Loaded saved entries:", entries.length);
         }
 
         function shareOnTwitter() {
