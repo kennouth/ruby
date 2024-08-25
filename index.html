@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Ruby Focus</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
     <style>
         body, html {
             height: 100%;
@@ -12,37 +14,21 @@
             padding: 0;
         }
         body {
-            font-family: Arial, sans-serif;
             display: flex;
             flex-direction: column;
+            font-family: Arial, sans-serif;
         }
         #map {
-            flex-grow: 1;
-            min-height: 400px; /* Ensure a minimum height */
+            height: 400px;
+            width: 100%;
         }
         #input-container, #quote-container {
             padding: 20px;
             background-color: #f0f0f0;
         }
-        input, button {
-            margin: 5px;
-            padding: 5px;
-        }
         #quote-container {
             display: none;
             text-align: center;
-            font-size: 18px;
-        }
-        .share-buttons {
-            margin-top: 10px;
-        }
-        .share-buttons button {
-            margin: 0 5px;
-            padding: 5px 10px;
-            background-color: #4CAF50;
-            color: white;
-            border: none;
-            cursor: pointer;
         }
     </style>
 </head>
@@ -54,133 +40,83 @@
     </div>
     <div id="quote-container">
         <p id="quote"></p>
-        <div class="share-buttons">
-            <button onclick="shareOnTwitter()">Share on Twitter</button>
-            <button onclick="shareOnFacebook()">Share on Facebook</button>
-        </div>
+        <button onclick="shareOnTwitter()">Share on Twitter</button>
+        <button onclick="shareOnFacebook()">Share on Facebook</button>
     </div>
     <div id="map"></div>
 
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/OverlappingMarkerSpiderfier-Leaflet/0.2.6/oms.min.js"></script>
     <script>
-        let map, markers = {};
-
-        document.addEventListener('DOMContentLoaded', function() {
-            initMap();
-            loadSavedFocuses();
-
-            setInterval(updateMarkers, 60000);  // Update every minute
-        });
+        let map, markerClusterGroup, oms;
 
         function initMap() {
+            console.log("Initializing map...");
             map = L.map('map').setView([0, 0], 2);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             }).addTo(map);
+
+            markerClusterGroup = L.markerClusterGroup().addTo(map);
+            oms = new OverlappingMarkerSpiderfier(map);
+
+            oms.addListener('click', function(marker) {
+                marker.openPopup();
+            });
+
+            console.log("Map initialized");
         }
 
-        function updateMarkers() {
-            for (let username in markers) {
-                let data = JSON.parse(localStorage.getItem(username));
-                if (data) {
-                    let timeDiff = Math.round((Date.now() - data.timestamp) / (60 * 1000));
-                    markers[username].setPopupContent(`<b>${username}</b><br>${data.focus}<br>${timeDiff} min ago`);
-                }
-            }
-        }
-
-        function generatePun(city) {
-            const puns = {
-                'New York': 'New Focus City',
-                'Los Angeles': 'Los Focused',
-                'Chicago': 'Chicagocus',
-                'Houston': 'Focuston',
-                'Phoenix': 'Phoenocus',
-                'Philadelphia': 'Philadelfocus',
-                'San Antonio': 'San Focusio',
-                'San Diego': 'San Diegocus',
-                'Dallas': 'Focuslas',
-                'San Jose': 'San Focus'
-            };
-            return puns[city] || `${city} Focus`;
-        }
-
-        function generateInspirationalQuote(focus) {
-            const quotes = [
-                `Your focus on ${focus} will lead you to great achievements.`,
-                `Dedication to ${focus} is the first step towards mastery.`,
-                `With ${focus} as your goal, success is inevitable.`,
-                `Your commitment to ${focus} will inspire others.`,
-                `Every moment spent on ${focus} is an investment in your future.`
-            ];
-            return quotes[Math.floor(Math.random() * quotes.length)];
+        function generateQuote(focus) {
+            return `Your focus on ${focus} will lead you to great achievements.`;
         }
 
         function submitFocus() {
+            console.log("Submit button clicked");
             let focus = document.getElementById('focus').value;
-            let username = document.getElementById('username').value;
+            let username = document.getElementById('username').value || 'Anonymous';
 
             if (!focus) {
                 alert('Please enter what you are focused on.');
                 return;
             }
 
-            const quote = generateInspirationalQuote(focus);
+            const quote = generateQuote(focus);
             document.getElementById('quote').textContent = quote;
             document.getElementById('quote-container').style.display = 'block';
 
-            fetch('https://ipapi.co/json/')
-                .then(response => response.json())
-                .then(data => {
-                    username = username || generatePun(data.city);
-                    let lat = data.latitude;
-                    let lon = data.longitude;
-
-                    if (markers[username]) {
-                        map.removeLayer(markers[username]);
-                    }
-
-                    let marker = L.marker([lat, lon]).addTo(map);
-                    marker.bindPopup(`<b>${username}</b><br>${focus}<br>Just now`).openPopup();
-                    markers[username] = marker;
-
-                    localStorage.setItem(username, JSON.stringify({
-                        focus: focus,
-                        lat: lat,
-                        lon: lon,
-                        timestamp: Date.now()
-                    }));
-                });
+            console.log("Adding marker for:", username, focus);
+            addMarker(username, focus);
         }
 
-        function loadSavedFocuses() {
-            for (let i = 0; i < localStorage.length; i++) {
-                let username = localStorage.key(i);
-                let data = JSON.parse(localStorage.getItem(username));
-                
-                if (Date.now() - data.timestamp > 24 * 60 * 60 * 1000) {
-                    localStorage.removeItem(username);
-                    continue;
-                }
+        function addMarker(username, focus) {
+            // For demonstration, we'll use a random location
+            let lat = Math.random() * 180 - 90;
+            let lon = Math.random() * 360 - 180;
 
-                let marker = L.marker([data.lat, data.lon]).addTo(map);
-                let timeDiff = Math.round((Date.now() - data.timestamp) / (60 * 1000));
-                marker.bindPopup(`<b>${username}</b><br>${data.focus}<br>${timeDiff} min ago`);
-                markers[username] = marker;
-            }
+            let marker = L.marker([lat, lon]);
+            marker.bindPopup(`<b>${username}</b><br>${focus}`);
+            markerClusterGroup.addLayer(marker);
+            oms.addMarker(marker);
+
+            console.log("Marker added at:", lat, lon);
         }
 
         function shareOnTwitter() {
             const quote = document.getElementById('quote').textContent;
-            const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(quote)}`;
-            window.open(twitterUrl, '_blank');
+            window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(quote)}`, '_blank');
         }
 
         function shareOnFacebook() {
             const quote = document.getElementById('quote').textContent;
-            const facebookUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(window.location.href)}&quote=${encodeURIComponent(quote)}`;
-            window.open(facebookUrl, '_blank');
+            window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(window.location.href)}&quote=${encodeURIComponent(quote)}`, '_blank');
         }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log("DOM fully loaded");
+            initMap();
+        });
     </script>
 </body>
 </html>
