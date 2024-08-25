@@ -7,39 +7,154 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black">
     <meta name="apple-mobile-web-app-title" content="Ruby Focus">
-    <!-- ... (rest of the head content) ... -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
+    <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            display: flex;
+            flex-direction: column;
+            font-family: Arial, sans-serif;
+        }
+        #map {
+            flex-grow: 1;
+            width: 100%;
+            min-height: 300px;
+        }
+        #input-container, #quote-container {
+            padding: 10px;
+            background-color: #f0f0f0;
+        }
+        #quote-container {
+            display: none;
+            text-align: center;
+        }
+    </style>
 </head>
 <body>
-    <!-- ... (body content remains the same) ... -->
+    <div id="input-container">
+        <input type="text" id="username" placeholder="Username (optional)">
+        <input type="text" id="focus" placeholder="I am focused on...">
+        <button onclick="submitFocus()">Submit</button>
+    </div>
+    <div id="quote-container">
+        <p id="quote"></p>
+        <button onclick="shareOnTwitter()">Share on Twitter</button>
+        <button onclick="shareOnFacebook()">Share on Facebook</button>
+    </div>
+    <div id="map"></div>
 
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
     <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/OverlappingMarkerSpiderfier-Leaflet/0.2.6/oms.min.js"></script>
     <script type="module">
-        // ... (previous imports and setup) ...
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+        import { getDatabase, ref, push, onValue } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-database.js";
+        import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-analytics.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyB5oid4STY_ELtgunvBMZtuxgtUuGl3x3A",
+            authDomain: "ruby-d8348.firebaseapp.com",
+            projectId: "ruby-d8348",
+            storageBucket: "ruby-d8348.appspot.com",
+            messagingSenderId: "623879539703",
+            appId: "1:623879539703:web:e73c259ca35d59fb277cf2",
+            measurementId: "G-7RF5ZZ53MD"
+        };
+
+        let app, database, analytics, map, markerClusterGroup, oms;
+
+        try {
+            app = initializeApp(firebaseConfig);
+            database = getDatabase(app);
+            analytics = getAnalytics(app);
+            console.log("Firebase initialized successfully");
+        } catch (error) {
+            console.error("Error initializing Firebase:", error);
+        }
+
+        function initMap() {
+            try {
+                console.log("Initializing map...");
+                map = L.map('map').setView([0, 0], 2);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                }).addTo(map);
+
+                markerClusterGroup = L.markerClusterGroup().addTo(map);
+                oms = new OverlappingMarkerSpiderfier(map);
+
+                oms.addListener('click', function(marker) {
+                    marker.openPopup();
+                });
+
+                console.log("Map initialized");
+                loadEntries();
+            } catch (error) {
+                console.error("Error initializing map:", error);
+            }
+        }
+
+        function generateQuote(focus) {
+            return `Your focus on ${focus} will lead you to great achievements.`;
+        }
+
+        window.submitFocus = function() {
+            try {
+                console.log("Submit button clicked");
+                let focus = document.getElementById('focus').value;
+                let username = document.getElementById('username').value || 'Anonymous';
+
+                if (!focus) {
+                    alert('Please enter what you are focused on.');
+                    return;
+                }
+
+                const quote = generateQuote(focus);
+                document.getElementById('quote').textContent = quote;
+                document.getElementById('quote-container').style.display = 'block';
+
+                getUserLocation(username, focus);
+            } catch (error) {
+                console.error("Error in submitFocus:", error);
+            }
+        }
 
         function getUserLocation(username, focus) {
-            if ("geolocation" in navigator) {
-                const options = {
-                    enableHighAccuracy: true,
-                    timeout: 5000,
-                    maximumAge: 0
-                };
+            try {
+                if ("geolocation" in navigator) {
+                    const options = {
+                        enableHighAccuracy: true,
+                        timeout: 5000,
+                        maximumAge: 0
+                    };
 
-                navigator.permissions.query({name:'geolocation'}).then(function(result) {
-                    if (result.state === 'granted') {
-                        navigator.geolocation.getCurrentPosition(successCallback, errorCallback, options);
-                    } else if (result.state === 'prompt') {
-                        alert("This app needs your location to place your focus on the map. Please allow location access when prompted.");
-                        navigator.geolocation.getCurrentPosition(successCallback, errorCallback, options);
-                    } else if (result.state === 'denied') {
-                        alert("Location access was denied. Using IP-based location instead.");
+                    navigator.permissions.query({name:'geolocation'}).then(function(result) {
+                        if (result.state === 'granted') {
+                            navigator.geolocation.getCurrentPosition(successCallback, errorCallback, options);
+                        } else if (result.state === 'prompt') {
+                            alert("This app needs your location to place your focus on the map. Please allow location access when prompted.");
+                            navigator.geolocation.getCurrentPosition(successCallback, errorCallback, options);
+                        } else if (result.state === 'denied') {
+                            alert("Location access was denied. Using IP-based location instead.");
+                            useIpBasedLocation(username, focus);
+                        }
+                    }).catch(function(error) {
+                        console.error("Error querying geolocation permission:", error);
                         useIpBasedLocation(username, focus);
-                    }
-                });
-            } else {
-                console.log("Geolocation not available");
-                alert("Geolocation is not supported by your browser. Using IP-based location instead.");
+                    });
+                } else {
+                    console.log("Geolocation not available");
+                    alert("Geolocation is not supported by your browser. Using IP-based location instead.");
+                    useIpBasedLocation(username, focus);
+                }
+            } catch (error) {
+                console.error("Error in getUserLocation:", error);
                 useIpBasedLocation(username, focus);
             }
 
@@ -78,8 +193,80 @@
             addEntry(username, focus, lat, lon);
         }
 
-        // ... (rest of the code remains the same) ...
+        function addEntry(username, focus, lat, lon) {
+            try {
+                if (lat === undefined || lon === undefined) {
+                    lat = Math.random() * 180 - 90;
+                    lon = Math.random() * 360 - 180;
+                }
 
+                let entry = { username, focus, lat, lon, timestamp: Date.now() };
+                
+                console.log("Adding entry:", entry);
+                push(ref(database, 'entries'), entry)
+                    .then(() => {
+                        addMarker(entry);
+                        console.log("Entry added successfully");
+                    })
+                    .catch(error => console.error('Error adding entry:', error));
+            } catch (error) {
+                console.error("Error in addEntry:", error);
+            }
+        }
+
+        function addMarker(entry) {
+            try {
+                console.log("Adding marker for entry:", entry);
+                let marker = L.marker([entry.lat, entry.lon]);
+                marker.bindPopup(`<b>${entry.username}</b><br>${entry.focus}`);
+                markerClusterGroup.addLayer(marker);
+                oms.addMarker(marker);
+                console.log("Marker added to cluster group");
+
+                // Center the map on the new marker
+                map.setView([entry.lat, entry.lon], 10);
+            } catch (error) {
+                console.error("Error in addMarker:", error);
+            }
+        }
+
+        function loadEntries() {
+            try {
+                console.log("Loading entries...");
+                onValue(ref(database, 'entries'), (snapshot) => {
+                    const entries = snapshot.val();
+                    if (entries) {
+                        console.log("Entries loaded:", Object.keys(entries).length);
+                        Object.values(entries).forEach(entry => addMarker(entry));
+                        
+                        // Fit the map to show all markers
+                        let group = L.featureGroup(markerClusterGroup.getLayers());
+                        map.fitBounds(group.getBounds().pad(0.1));
+                    } else {
+                        console.log("No entries found");
+                    }
+                }, {
+                    onlyOnce: true
+                });
+            } catch (error) {
+                console.error("Error in loadEntries:", error);
+            }
+        }
+
+        window.shareOnTwitter = function() {
+            const quote = document.getElementById('quote').textContent;
+            window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(quote)}`, '_blank');
+        }
+
+        window.shareOnFacebook = function() {
+            const quote = document.getElementById('quote').textContent;
+            window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(window.location.href)}&quote=${encodeURIComponent(quote)}`, '_blank');
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log("DOM fully loaded");
+            initMap();
+        });
     </script>
 </body>
 </html>
