@@ -107,26 +107,22 @@
             document.getElementById('quote').textContent = quote;
             document.getElementById('quote-container').style.display = 'block';
 
-            getUserLocation(username, focus);
+            getIpBasedLocation(username, focus);
         }
 
-        function getUserLocation(username, focus) {
-            if ("geolocation" in navigator) {
-                navigator.geolocation.getCurrentPosition(function(position) {
-                    let lat = position.coords.latitude;
-                    let lon = position.coords.longitude;
-                    console.log("User location:", lat, lon);
+        function getIpBasedLocation(username, focus) {
+            fetch('https://ipapi.co/json/')
+                .then(response => response.json())
+                .then(data => {
+                    let lat = data.latitude;
+                    let lon = data.longitude;
+                    console.log("IP-based location:", lat, lon);
                     addEntry(username, focus, lat, lon);
-                }, function(error) {
-                    console.error("Error getting location:", error);
-                    alert("Couldn't get your location. Using a random location instead.");
+                })
+                .catch(error => {
+                    console.error("Error getting IP-based location:", error);
                     addEntry(username, focus);
                 });
-            } else {
-                console.log("Geolocation not available");
-                alert("Geolocation is not supported by your browser. Using a random location instead.");
-                addEntry(username, focus);
-            }
         }
 
         function addEntry(username, focus, lat, lon) {
