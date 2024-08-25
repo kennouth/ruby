@@ -45,7 +45,26 @@
     <div id="map"></div>
 
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
-    <script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+        import { getDatabase, ref, push, onValue } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-database.js";
+        import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-analytics.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyB5oid4STY_ELtgunvBMZtuxgtUuGl3x3A",
+            authDomain: "ruby-d8348.firebaseapp.com",
+            projectId: "ruby-d8348",
+            storageBucket: "ruby-d8348.appspot.com",
+            messagingSenderId: "623879539703",
+            appId: "1:623879539703:web:e73c259ca35d59fb277cf2",
+            measurementId: "G-7RF5ZZ53MD"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const analytics = getAnalytics(app);
+        const database = getDatabase(app);
+
         let map, markers = [];
 
         function initMap() {
@@ -55,14 +74,14 @@
                 attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             }).addTo(map);
             console.log("Map initialized");
-            loadSavedEntries();
+            loadEntries();
         }
 
         function generateQuote(focus) {
             return `Your focus on ${focus} will lead you to great achievements.`;
         }
 
-        function submitFocus() {
+        window.submitFocus = function() {
             console.log("Submit button clicked");
             let focus = document.getElementById('focus').value;
             let username = document.getElementById('username').value || 'Anonymous';
@@ -85,59 +104,60 @@
                     let lat = position.coords.latitude;
                     let lon = position.coords.longitude;
                     console.log("User location:", lat, lon);
-                    addMarker(username, focus, lat, lon);
+                    addEntry(username, focus, lat, lon);
                 }, function(error) {
                     console.error("Error getting location:", error);
                     alert("Couldn't get your location. Using a random location instead.");
-                    addMarker(username, focus);
+                    addEntry(username, focus);
                 });
             } else {
                 console.log("Geolocation not available");
                 alert("Geolocation is not supported by your browser. Using a random location instead.");
-                addMarker(username, focus);
+                addEntry(username, focus);
             }
         }
 
-        function addMarker(username, focus, lat, lon) {
+        function addEntry(username, focus, lat, lon) {
             if (lat === undefined || lon === undefined) {
                 // Use random location if not provided
                 lat = Math.random() * 180 - 90;
                 lon = Math.random() * 360 - 180;
             }
 
-            let marker = L.marker([lat, lon]).addTo(map);
-            marker.bindPopup(`<b>${username}</b><br>${focus}`).openPopup();
+            let entry = { username, focus, lat, lon, timestamp: Date.now() };
+            
+            push(ref(database, 'entries'), entry)
+                .then(() => {
+                    addMarker(entry);
+                    console.log("Entry added successfully");
+                })
+                .catch(error => console.error('Error:', error));
+        }
+
+        function addMarker(entry) {
+            let marker = L.marker([entry.lat, entry.lon]).addTo(map);
+            marker.bindPopup(`<b>${entry.username}</b><br>${entry.focus}`).openPopup();
             markers.push(marker);
-
-            console.log("Marker added at:", lat, lon);
-            console.log("Total markers:", markers.length);
-
-            // Save the entry
-            saveEntry(username, focus, lat, lon);
         }
 
-        function saveEntry(username, focus, lat, lon) {
-            let entries = JSON.parse(localStorage.getItem('entries')) || [];
-            entries.push({ username, focus, lat, lon, timestamp: Date.now() });
-            localStorage.setItem('entries', JSON.stringify(entries));
-        }
-
-        function loadSavedEntries() {
-            let entries = JSON.parse(localStorage.getItem('entries')) || [];
-            entries.forEach(entry => {
-                let marker = L.marker([entry.lat, entry.lon]).addTo(map);
-                marker.bindPopup(`<b>${entry.username}</b><br>${entry.focus}`);
-                markers.push(marker);
+        function loadEntries() {
+            onValue(ref(database, 'entries'), (snapshot) => {
+                const entries = snapshot.val();
+                if (entries) {
+                    Object.values(entries).forEach(entry => addMarker(entry));
+                    console.log("Loaded entries:", Object.keys(entries).length);
+                }
+            }, {
+                onlyOnce: true
             });
-            console.log("Loaded saved entries:", entries.length);
         }
 
-        function shareOnTwitter() {
+        window.shareOnTwitter = function() {
             const quote = document.getElementById('quote').textContent;
             window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(quote)}`, '_blank');
         }
 
-        function shareOnFacebook() {
+        window.shareOnFacebook = function() {
             const quote = document.getElementById('quote').textContent;
             window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(window.location.href)}&quote=${encodeURIComponent(quote)}`, '_blank');
         }
